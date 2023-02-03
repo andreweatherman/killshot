@@ -38,6 +38,26 @@ div_one <- left_join(schedule |> select(away) |> count(away) |> setNames(c('team
     filter(!is.na(total) & total >= 15) |> 
   pluck(1)
 
+scoring_drought <- function(drought_length = 120, year = 2023) {
+  
+  all_pbp |>
+    mutate(point_value = case_when(
+      shot_outcome == 'made' & three_pt == TRUE ~ 3,
+      shot_outcome == 'made' & free_throw == TRUE ~ 1,
+      shot_outcome == 'missed' | is.na(shot_outcome) ~ 0,
+      .default = 2
+    ),
+    opponent = ifelse(shot_team == home, away, home)) |> 
+    select(game_id, date, home, away, half, secs_remaining, secs_remaining_absolute, play_length, point_value, shot_team, opponent) |> 
+    mutate(id = consecutive_id(shot_team), .by = c(game_id)) |> 
+    summarize(points_scored = sum(point_value), 
+              time_passed = sum(play_length),
+              .by = c(game_id, id, shot_team))
+    
+  
+}
+
+
 kill_shot_team <- function(team, kill_shot = 10, year = 2023, consecutive = FALSE) {
   # format year variable
   year <- paste0(year - 1, '-', year - 2000)
