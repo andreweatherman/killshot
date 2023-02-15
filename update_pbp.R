@@ -28,5 +28,15 @@ pbp_to_join <- map_dfr(
 )
 
 all_pbp <- bind_rows(pbp, pbp_to_join)
+
+bart_names <- ncaahoopR::dict$Trank
+names(bart_names) <- ncaahoopR::dict$ESPN_PBP
+
+all_pbp <- all_pbp |> 
+  mutate(bart_date = gsub('0', '', paste0(substr(date, 6, 7), '-', substr(date, 9, 10))),
+         bart_name_home = bart_names[home],
+         bart_name_away = bart_names[away],
+         bart_game_id = paste0(bart_name_away, bart_name_home, bart_date))
+
 write_parquet(all_pbp, '2023_pbp.parquet')
 

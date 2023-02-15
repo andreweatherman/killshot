@@ -30,6 +30,8 @@ parquet_from_url <- function(url){
 }
 
 
+schedule <- toRvik::bart_season_schedule()
+
 div_one <- left_join(schedule |> select(away) |> count(away) |> setNames(c('team', 'away')), 
             schedule |> select(home) |> count(home) |> setNames(c('team', 'home')),
             by = 'team') |> 
@@ -128,26 +130,23 @@ kill_shot_player <- function(player = NULL, kill_shot = 10, consecutive = FALSE)
     con <- '!is.na(shot_team) & !point_value == 0'
   }
   
-  data <- pbp |> 
-    # add point value and opponent
-    mutate(point_value = case_when(
-      shot_outcome == 'made' & three_pt == TRUE ~ 3,
-      shot_outcome == 'made' & free_throw == TRUE ~ 1,
-      shot_outcome == 'missed' | is.na(shot_outcome) ~ 0,
-      .default = 2
-    ),
-    opponent = ifelse(shot_team == home, away, home)) |> 
-    # point values of 0 need to be thrown out to calculate correct run
-    filter(eval_tidy(parse_expr(con))) |> 
-    select(date, game_id, opponent, shot_team, shooter, point_value) |> 
-    group_by(date, game_id, opponent, shot_team, shooter, chunk = with(rle(shooter), rep(seq_along(lengths), lengths))) |> 
-    summarize(total_points = sum(point_value), .groups = 'drop') |> 
-    filter(shot_team %in% div_one & opponent %in% div_one) |> 
-    filter(total_points >= kill_shot) |> 
-    arrange(desc(total_points)) |>
-    select(-c(chunk, game_id)) |> 
-    # set names for return
-    setNames(c('date', 'opponent', 'team', 'player', 'points'))
+  
+data <- pbp |>
+  # add point value and opponent
+  mutate(point_value = case_when(
+    shot_outcome == 'made' & three_pt == TRUE ~ 3,
+    shot_outcome == 'made' & free_throw == TRUE ~ 1,
+    shot_outcome == 'missed' | is.na(shot_outcome) ~ 0,
+    .default = 2
+  ),
+  opponent = ifelse(shot_team == home, away, home)) |> 
+  filter(eval_tidy(parse_expr(con))) |> 
+  mutate(id = consecutive_id(shooter), .by = c(date, game_id, opponent, shot_team)) |> 
+  summarise(total = sum(point_value), .by = c(date, game_id, opponent, shot_team, shooter, id)) |> 
+  arrange(desc(total)) |> 
+  select(-c(id, game_id)) |> 
+  # set names for return
+  setNames(c('date', 'opponent', 'team', 'player', 'points'))
   
   return(data)
     
